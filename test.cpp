@@ -18,8 +18,6 @@ struct Fish {
 };
 
 void test_kth_percentile() {
-    TEST_PREAMBLE;
-
     const auto by_age = [](const Fish& fish) { return fish.age; };
     order_statistics::KthPercentile<Fish, 50, decltype(by_age)> p50;
     order_statistics::KthPercentile<Fish, 70, decltype(by_age)> p70;
