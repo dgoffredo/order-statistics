@@ -26,8 +26,9 @@ class KthPercentile {
   // min-heap of all elements greater than the k'th percentile value.
   std::priority_queue<Value, std::vector<Value>, KeyGreater> higher;
 
-  // Move elements between `lower` and `higher` until
-  // `lower.size() == percentile * (lower.size() + higher.size()) / 100`.
+  // Move elements between `lower` and `higher` until `lower` contains all
+  // elements less than or equal to the k'th percentile value, `higher`
+  // contains all greater elements.
   void rebalance();
 
  public:
@@ -89,16 +90,13 @@ void KthPercentile<Value, percentile, Key>::insert(Value&& value) {
 template <typename Value, std::size_t percentile, typename Key>
 void KthPercentile<Value, percentile, Key>::rebalance() {
   const std::size_t n = lower.size() + higher.size();
-  const std::size_t lower_target = std::round(percentile / 100.0 * n);
-  const std::size_t higher_target = std::round((100 - percentile) / 100.0 * n);
+  const std::size_t lower_target = percentile / 100.0 * n + 1;
   
-  while (lower.size() < lower_target) {
+  if (lower.size() < lower_target) {
     assert(!higher.empty());
     lower.push(higher.top());
     higher.pop();
-  }
-
-  while (higher.size() < higher_target) {
+  } else if (lower.size() > lower_target) {
     assert(!lower.empty());
     higher.push(lower.top());
     lower.pop();
