@@ -1,4 +1,7 @@
 #include <algorithm>
+#include <concepts>
+#include <cstdint>
+#include <limits>
 #include <ostream>
 #include <string>
 #include "kth-percentile.h"
@@ -159,6 +162,32 @@ void test_kth_percentile() {
     }
 }
 
+// Return the smallest power of two that is greater than or equal to `value`,
+// or return zero if that power of two cannot be expressed as a `Uint`.
+template <std::unsigned_integral Uint>
+Uint enclosing_power_of_2(Uint value) {
+    if (!value) {
+        return 1;
+    }
+    constexpr int width = std::numeric_limits<Uint>::digits;
+    const int left_zeros = std::countl_zero(value);
+    const Uint high_only = Uint(1) << (width - left_zeros - 1);
+    if (high_only == value) {
+        return value;
+    }
+    // Otherwise, return the next power of two.
+    return Uint(1) << (width - left_zeros);
+}
+
+void test_enclosing_power_of_2() {
+    std::uint8_t i = 0;
+    do {
+        std::cout << "i = " << int(i) << "\tenclosing_power_of_2 = " << int(enclosing_power_of_2(i)) << '\n';
+        ++i;
+    } while (i != 0);
+}
+
 int main() {
     test_kth_percentile();
+    test_enclosing_power_of_2();
 }
