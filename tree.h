@@ -244,7 +244,7 @@ void TreeNode<T>::generic_insert(U&& value) {
     char *destination;
     if (size == capacity) {
         // We have to reallocate to larger storage and move the elements over.
-        std::unique_ptr<char> new_storage(new char[capacity * 2]);
+        std::unique_ptr<char[]> new_storage(new char[2 * capacity * sizeof(T)]);
         char *const old_storage = allocated;
         T *const begin = std::launder(reinterpret_cast<T*>(old_storage));
         const T *const end = begin + size;
@@ -261,7 +261,7 @@ void TreeNode<T>::generic_insert(U&& value) {
         for (auto iter = begin; iter != end; ++iter) {
             iter->~T();
         }
-        delete old_storage;
+        delete[] old_storage;
     } else {
         // There's already room for `value`.
         destination = allocated + size * sizeof(T);
@@ -320,11 +320,11 @@ class Tree {
     // - `nth_elements(9) is [F0]`
     std::span<const T> nth_elements(std::size_t rank) const;
 
-    // Return all elements whose `GetKey` value is in the specified percentile.
+    // Return all elements whose `GetKey` key is in the specified percentile.
     // `percent` is between 1 and 100, inclusive.
     // The n'th percentile is the smallest key `k` such that the keys of at
     // least n% of elements are less than or equal to `k`.
-    std::span<const T> percentile(std::size_t percent) const; // TODO
+    std::span<const T> percentile(std::size_t percent) const;
 
     // TODO
     // {min, max} of possible zero-based position of the `value` in `GetKey`-order
@@ -539,6 +539,12 @@ template <typename T, typename GetKey>
 std::span<const T> Tree<T, GetKey>::nth_elements(std::size_t rank) const {
     const auto [values, _] = get(rank);
     return values;
+}
+
+template <typename T, typename GetKey>
+std::span<const T> Tree<T, GetKey>::percentile(std::size_t percent) const {
+    const std::size_t rank = std::min(percent * size() / 100, size() - 1);
+    return nth_elements(rank);
 }
 
 } // namespace order_statistics
