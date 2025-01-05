@@ -1,13 +1,11 @@
 #include <algorithm>
-#include <concepts>
+#include <cmath>
 #include <cstdint>
 #include <limits>
-#include <memory_resource>
-#include <new>
 #include <ostream>
 #include <string>
 #include "kth-percentile.h"
-#include "stack.h"
+#include "tree.h"
 #include "test.h"
 
 struct Fish {
@@ -165,74 +163,112 @@ void test_kth_percentile() {
     }
 }
 
-// Return the smallest power of two that is greater than or equal to `value`,
-// or return zero if that power of two cannot be expressed as a `Uint`.
-template <std::unsigned_integral Uint>
-Uint enclosing_power_of_2(Uint value) {
-    if (!value) {
-        return 1;
-    }
-    constexpr int width = std::numeric_limits<Uint>::digits;
-    const int left_zeros = std::countl_zero(value);
-    const Uint high_only = Uint(1) << (width - left_zeros - 1);
-    if (high_only == value) {
-        return value;
-    }
-    // Otherwise, return the next power of two.
-    return Uint(1) << (width - left_zeros);
-}
-
 void test_enclosing_power_of_2() {
-    std::uint8_t i = 0;
+    // `oracle` calculates the expected answer in a different way than the true
+    // implementation.
+    const auto oracle = [](auto integer) {
+        using Uint = decltype(integer);
+        if (integer == 0) {
+           return Uint(1);
+        }
+        const int power = std::ceil(std::log2(integer));
+        if (power >= std::numeric_limits<Uint>::digits) {
+            return Uint(0);
+        }
+        return Uint(Uint(1) << power);
+    };
+
+    // Try all 65,536 values of `uint16_t`.
+    std::uint16_t i = 0;
     do {
-        std::cout << "i = " << int(i) << "\tenclosing_power_of_2 = " << int(enclosing_power_of_2(i)) << '\n';
+        ADD_CONTEXT(i);
+        ASSERT_EQUAL(order_statistics::detail::enclosing_power_of_2(i), oracle(i));
         ++i;
     } while (i != 0);
 }
 
-template <std::size_t N>
-void test_stack_for_size() {
-    // Make sure it doesn't allocate beyond the inline buffer, except when necessary.
-    order_statistics::detail::Stack<int, N> stack(std::pmr::null_memory_resource());
-
-    for (std::size_t i = 0; i < N; ++i) {
-        stack.push(i);
+template <typename T>
+void debug_print(std::ostream& out, order_statistics::TreeNode<T> *node, int indent = 0) {
+    static const auto tabstop = std::string(2, ' ');
+    for (int i = 0; i < indent; ++i) {
+        out << tabstop;
     }
 
-    // An additional element will trigger reallocation, which will fail due to
-    // the backing `null_memory_resource`.
-    bool threw = false;
-    try {
-        stack.push(N);
-    } catch (const std::bad_alloc&) {
-        threw = true;
+    if (!node) {
+        out << "()";
+        return;
     }
-    ADD_CONTEXT(N);
-    ASSERT_EQUAL(threw, true);
+
+    out << "([";
+    const auto values = node->values();
+    auto iter = values.begin();
+    const auto end = values.end();
+    if (iter != end) {
+        out << *iter;
+        for (++iter; iter != end; ++iter) {
+            out << ' ' << *iter;
+        }
+    }
+    // `std::uint8_t TreeNode::height` might print as a `char` because it might
+    // be a `typedef` for `unsigned char`. 😾
+    out << "] {h:" << int(node->height) << " w:" << node->weight << '}';
+
+    if (!node->left && !node->right) {
+        out << ')';
+        return;
+    }
+
+    out << '\n';
+    debug_print(out, node->left, indent + 1);
+    out << '\n';
+    debug_print(out, node->right, indent + 1);
+    out << ')';
 }
+
+template <typename T, typename K>
+void debug_print(const order_statistics::Tree<T, K>& tree) {
+    debug_print(std::cerr, tree.get_root_for_testing());
+    std::cerr << "\n\n";
+}
+
+void test_tree() {
+    const auto by_length = [](const std::string& str) { return str.size(); };
+    order_statistics::Tree<std::string, decltype(by_length)> tree;
     
-void test_stack() {
-    test_stack_for_size<1>();
-    test_stack_for_size<2>();
-    test_stack_for_size<3>();
-    test_stack_for_size<4>();
-    test_stack_for_size<5>();
-    test_stack_for_size<6>();
-    test_stack_for_size<7>();
-    test_stack_for_size<8>();
-    test_stack_for_size<9>();
-    test_stack_for_size<10>();
-    test_stack_for_size<11>();
-    test_stack_for_size<12>();
-    test_stack_for_size<13>();
-    test_stack_for_size<14>();
-    test_stack_for_size<15>();
-    test_stack_for_size<16>();
-    test_stack_for_size<17>();
+    debug_print(tree);
+    ASSERT_EQUAL(tree.size(), 0u);
+
+    tree.insert("a");
+    debug_print(tree);
+    ASSERT_EQUAL(tree.size(), 1u);
+
+    tree.insert("b");
+    debug_print(tree);
+    ASSERT_EQUAL(tree.size(), 2u);
+
+    tree.insert("ab");
+    debug_print(tree);
+    ASSERT_EQUAL(tree.size(), 3u);
+    
+    tree.insert("abc");
+    debug_print(tree);
+    ASSERT_EQUAL(tree.size(), 4u);
+
+    tree.insert("abcde");
+    debug_print(tree);
+    ASSERT_EQUAL(tree.size(), 5u);
+
+    tree.insert("abcd");
+    debug_print(tree);
+    ASSERT_EQUAL(tree.size(), 6u);
+
+    tree.insert("abcdef");
+    debug_print(tree);
+    ASSERT_EQUAL(tree.size(), 7u);
 }
 
 int main() {
     test_kth_percentile();
-    // test_enclosing_power_of_2();
-    test_stack();
+    test_enclosing_power_of_2();
+    test_tree();
 }
