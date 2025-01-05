@@ -1,9 +1,11 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <iterator>
 #include <limits>
 #include <ostream>
 #include <string>
+#include <string_view>
 #include "kth-percentile.h"
 #include "tree.h"
 #include "test.h"
@@ -234,37 +236,42 @@ void debug_print(const order_statistics::Tree<T, K>& tree) {
 void test_tree() {
     const auto by_length = [](const std::string& str) { return str.size(); };
     order_statistics::Tree<std::string, decltype(by_length)> tree;
-    
+
     debug_print(tree);
     ASSERT_EQUAL(tree.size(), 0u);
 
-    tree.insert("a");
-    debug_print(tree);
-    ASSERT_EQUAL(tree.size(), 1u);
+    const char *values[] = {"a", "b", "ab", "abc", "abcde", "abcd", "abcdef"};
 
-    tree.insert("b");
-    debug_print(tree);
-    ASSERT_EQUAL(tree.size(), 2u);
+    for (std::size_t i = 0; i < std::size(values); ++i) {
+        ADD_CONTEXT(i);
+        ADD_CONTEXT(values[i]);
+        tree.insert(values[i]);
+        debug_print(tree);
+        ASSERT_EQUAL(tree.size(), i + 1);
+    }
 
-    tree.insert("ab");
-    debug_print(tree);
-    ASSERT_EQUAL(tree.size(), 3u);
+    // Sort the input values so we can test `nth_element`.
+    const auto length_less = [](std::string_view left, std::string_view right) {
+        return left.size() < right.size();
+    };
+    std::stable_sort(std::begin(values), std::end(values), length_less);
     
-    tree.insert("abc");
-    debug_print(tree);
-    ASSERT_EQUAL(tree.size(), 4u);
+    // `nth_element`
+    for (std::size_t i = 0; i < std::size(values); ++i) {
+        ADD_CONTEXT(i);
+        ADD_CONTEXT(values[i]);
+        ASSERT_EQUAL(tree.nth_element(i), values[i]);
+    }
 
-    tree.insert("abcde");
-    debug_print(tree);
-    ASSERT_EQUAL(tree.size(), 5u);
-
-    tree.insert("abcd");
-    debug_print(tree);
-    ASSERT_EQUAL(tree.size(), 6u);
-
-    tree.insert("abcdef");
-    debug_print(tree);
-    ASSERT_EQUAL(tree.size(), 7u);
+    // `nth_elements`
+    for (std::size_t i = 0; i < std::size(values); ++i) {
+        ADD_CONTEXT(i);
+        const std::span<const std::string> elements = tree.nth_elements(i);
+        ASSERT_EQUAL(elements.empty(), false);
+        const auto [begin, end] =
+            std::equal_range(std::begin(values), std::end(values), elements[0], length_less);
+        ASSERT_EQUAL(std::equal(begin, end, elements.begin(), elements.end()), true);
+    }
 }
 
 int main() {

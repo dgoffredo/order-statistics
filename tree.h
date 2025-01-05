@@ -106,6 +106,9 @@ class TreeNode {
     void insert(T&&);
 
     void replace_children(TreeNode *new_left, TreeNode *new_right);
+    
+    // TODO: document
+    static std::pair<const TreeNode*, std::size_t> get(const TreeNode&, std::size_t rank);
 
  private:
     template <typename U>
@@ -196,6 +199,20 @@ void TreeNode<T>::replace_children(TreeNode *new_left, TreeNode *new_right) {
     height = 1 + std::max(left_height(), right_height());
 }
 
+template <TreeNodeValue T>
+std::pair<const TreeNode<T>*, std::size_t> TreeNode<T>::get(const TreeNode<T>& node, std::size_t rank) {
+   if (rank < node.left_weight()) {
+       // It's an element to our left.
+       return get(*node.left, rank);
+   } 
+   if (rank - node.left_weight() < node.size()) {
+       // It's one of our elements.
+       return {&node, rank - node.left_weight()};
+   }
+   // It's an element to our right.
+   return get(*node.right, rank - node.left_weight() - node.size());
+}
+
 // Note that in order for `generic_insert` to provide the strong exception
 // guarantee, the order of statements in its implementation is a bit subtle.
 template <TreeNodeValue T>
@@ -258,17 +275,6 @@ class Tree {
     using Node = TreeNode<T>;
     Node *root;
 
-    template <typename U>
-    void generic_insert(U&& value);
-    
-    template <typename U>
-    static Node *generic_insert(Node *into, U&& value);
-    
-    static Node *balance(Node*);
-    static Node *rotate_left(Node*);
-    static Node *rotate_right(Node*);
-    static void dispose(Node*);
-
  public:
     Tree();
     ~Tree();
@@ -290,13 +296,13 @@ class Tree {
     
     // Return the element whose zero-based `GetKey`-order index is the
     // specified `rank`, where elements having the same key are ordered by
-    // their order of insertion. `rank` is in the inclusive range `[0, size() - 1]`.
+    // their order of insertion. `rank` is between 0 and `size() - 1`, inclusive.
     const T& nth_element(std::size_t rank) const;
     
     // Return all elements whose zero-based `GetKey`-order index could be the
     // specified `rank`. `nth_elements` might return more than one element
-    // because elements can have the same key. `rank` is in the inclusive range
-    // `[0, size() - 1]`.
+    // because elements can have the same key. `rank` is between 0 and
+    // `size() - 1`, inclusive.
     //
     // For example, consider the following sorted sequence of elements, where
     // each element is identified by its key and its insertion order relative
@@ -314,21 +320,38 @@ class Tree {
     // - `nth_elements(9) is [F0]`
     std::span<const T> nth_elements(std::size_t rank) const;
 
-    // TODO
-    // `percent` in range `[1, 100]`
-    std::span<const T> percentile(std::size_t percent) const; // TODO?
+    // Return all elements whose `GetKey` value is in the specified percentile.
+    // `percent` is between 1 and 100, inclusive.
+    // The n'th percentile is the smallest key `k` such that the keys of at
+    // least n% of elements are less than or equal to `k`.
+    std::span<const T> percentile(std::size_t percent) const; // TODO
 
     // TODO
     // {min, max} of possible zero-based position of the `value` in `GetKey`-order
     // sequence.
-    std::pair<std::size_t, std::size_t> rank(const T& value) const;
+    std::pair<std::size_t, std::size_t> rank(const T& value) const; // TODO
     
     // Return all elements whose `GetKey` key is the same as the key of the
     // specified `value`.
-    std::span<const T> equal_range(const T& value) const;
+    std::span<const T> equal_range(const T& value) const; // TODO
     
     // Please don't.
     Node *get_root_for_testing() const;
+
+ private:
+    template <typename U>
+    void generic_insert(U&& value);
+    
+    template <typename U>
+    static Node *generic_insert(Node *into, U&& value);
+    
+    static Node *balance(Node*);
+    static Node *rotate_left(Node*);
+    static Node *rotate_right(Node*);
+    static void dispose(Node*);
+
+    // TODO: document
+    std::pair<std::span<const T>, std::size_t> get(std::size_t rank) const;
 };
 
 template <typename T, typename GetKey>
@@ -451,7 +474,7 @@ TreeNode<T> *Tree<T, GetKey>::balance(TreeNode<T> *node) {
 
 template <typename T, typename GetKey>
 TreeNode<T> *Tree<T, GetKey>::rotate_left(TreeNode<T> *node) {
-        //         B                     A
+    //         B                     A
     //       ./ \.                 ./ \.
     //     low   A        →        B  high
     //         ./ \.             ./ \.
@@ -497,6 +520,25 @@ TreeNode<T> *Tree<T, GetKey>::rotate_right(TreeNode<T> *node) {
 template <typename T, typename GetKey>
 TreeNode<T> *Tree<T, GetKey>::get_root_for_testing() const {
     return root;
+}
+
+template <typename T, typename GetKey>
+std::pair<std::span<const T>, std::size_t> Tree<T, GetKey>::get(std::size_t rank) const {
+    assert(root);
+    const auto [node, offset] = Node::get(*root, rank);
+    return {node->values(), offset};
+}
+
+template <typename T, typename GetKey>
+const T& Tree<T, GetKey>::nth_element(std::size_t rank) const {
+    const auto [values, offset] = get(rank);
+    return values[offset];
+}
+    
+template <typename T, typename GetKey>
+std::span<const T> Tree<T, GetKey>::nth_elements(std::size_t rank) const {
+    const auto [values, _] = get(rank);
+    return values;
 }
 
 } // namespace order_statistics
