@@ -19,7 +19,8 @@ struct Fish {
     }
 
     friend std::ostream& operator<<(std::ostream& out, const Fish& fish) {
-        return out << "Fish{.age=" << fish.age << ", .name=\"" << fish.name << "\"}";
+        // return out << "Fish{.age=" << fish.age << ", .name=\"" << fish.name << "\"}";
+        return out << fish.age;
     }
 };
 
@@ -289,6 +290,25 @@ void test_tree() {
             << " p100=" << fish_tree.percentile(100)[0].age
             << '\n';
         // debug_print(fish_tree);
+    }
+
+    // `equal_range` and `rank`
+    std::vector<Fish> sorted(std::begin(fishes), std::end(fishes));
+    const auto age_less = [](const Fish& left, const Fish& right) { return left.age < right.age; };
+    std::stable_sort(sorted.begin(), sorted.end(), age_less);
+    for (const Fish& fish : fishes) {
+        ADD_CONTEXT(fish);
+
+        const std::span<const Fish> school = fish_tree.equal_range(fish);
+        const auto [begin, end] = std::equal_range(sorted.begin(), sorted.end(), fish, age_less);
+        ASSERT_EQUAL(std::equal(school.begin(), school.end(), begin, end), true);
+        
+        const auto [min, max] = fish_tree.rank(fish);
+        // debug_print(fish_tree);
+        ADD_CONTEXT(min);
+        ADD_CONTEXT(max);
+        ASSERT_EQUAL(std::ptrdiff_t(min), std::distance(sorted.begin(), begin));
+        ASSERT_EQUAL(std::ptrdiff_t(max), std::distance(sorted.begin(), end) - 1);
     }
 }
 

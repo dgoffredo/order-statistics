@@ -107,7 +107,6 @@ class TreeNode {
 
     void replace_children(TreeNode *new_left, TreeNode *new_right);
     
-    // TODO: document
     static std::pair<const TreeNode*, std::size_t> get(const TreeNode&, std::size_t rank);
 
  private:
@@ -326,14 +325,14 @@ class Tree {
     // least n% of elements are less than or equal to `k`.
     std::span<const T> percentile(std::size_t percent) const;
 
-    // TODO
-    // {min, max} of possible zero-based position of the `value` in `GetKey`-order
-    // sequence.
-    std::pair<std::size_t, std::size_t> rank(const T& value) const; // TODO
+    // Return the `{min, max}` of possible zero-based positions of the `value`
+    // in `GetKey`-order sequence. The behavior is undefined unless `value` is
+    // in the tree.
+    std::pair<std::size_t, std::size_t> rank(const T& value) const;
     
     // Return all elements whose `GetKey` key is the same as the key of the
     // specified `value`.
-    std::span<const T> equal_range(const T& value) const; // TODO
+    std::span<const T> equal_range(const T& value) const;
     
     // Please don't.
     Node *get_root_for_testing() const;
@@ -350,8 +349,13 @@ class Tree {
     static Node *rotate_right(Node*);
     static void dispose(Node*);
 
-    // TODO: document
     std::pair<std::span<const T>, std::size_t> get(std::size_t rank) const;
+    
+    template <typename Key>
+    static const Node *find(const Node *node, const Key& key);
+
+    template <typename Key>
+    static std::pair<std::size_t, std::size_t> rank(const Node *node, const Key& key, std::size_t weight_behind);
 };
 
 template <typename T, typename GetKey>
@@ -530,6 +534,36 @@ std::pair<std::span<const T>, std::size_t> Tree<T, GetKey>::get(std::size_t rank
 }
 
 template <typename T, typename GetKey>
+template <typename Key>
+const TreeNode<T> *Tree<T, GetKey>::find(const TreeNode<T> *node, const Key& key) {
+    if (!node) {
+        return node;
+    }
+    const Key their_key = GetKey()(node->values()[0]);
+    if (key < their_key) {
+        return find(node->left, key);
+    }
+    if (their_key < key) {
+        return find(node->right, key);
+    }
+    return node;
+}
+
+template <typename T, typename GetKey>
+template <typename Key>
+std::pair<std::size_t, std::size_t> Tree<T, GetKey>::rank(const Node *node, const Key& key, std::size_t weight_behind) {
+    assert(node);
+    const Key their_key = GetKey()(node->values()[0]);
+    if (key < their_key) {
+        return rank(node->left, key, weight_behind);
+    }
+    if (their_key < key) {
+        return rank(node->right, key, weight_behind + node->left_weight() + node->size());
+    }
+    return {weight_behind + node->left_weight(), weight_behind + node->left_weight() + node->size() - 1};
+}
+
+template <typename T, typename GetKey>
 const T& Tree<T, GetKey>::nth_element(std::size_t rank) const {
     const auto [values, offset] = get(rank);
     return values[offset];
@@ -545,6 +579,19 @@ template <typename T, typename GetKey>
 std::span<const T> Tree<T, GetKey>::percentile(std::size_t percent) const {
     const std::size_t rank = std::min(percent * size() / 100, size() - 1);
     return nth_elements(rank);
+}
+
+template <typename T, typename GetKey>
+std::pair<std::size_t, std::size_t> Tree<T, GetKey>::rank(const T& value) const {
+    return rank(root, GetKey()(value), 0);
+}
+
+template <typename T, typename GetKey>
+std::span<const T> Tree<T, GetKey>::equal_range(const T& value) const {
+    if (const Node *const node = find(root, GetKey()(value))) {
+        return node->values();
+    }
+    return {};
 }
 
 } // namespace order_statistics
